@@ -1,4 +1,4 @@
-//! Codex App directives embedded in assistant markdown.
+//! Elva App directives embedded in assistant markdown.
 
 use std::collections::HashMap;
 use std::collections::HashSet;

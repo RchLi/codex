@@ -1,10 +1,10 @@
 {
-  "name": "@openai/codex",
+  "name": "elva",
   "version": "0.0.0-dev",
-  "description": "Codex CLI is a coding agent from OpenAI that runs locally on your computer.",
+  "description": "Elva is a personal coding agent CLI built on OpenAI Codex.",
   "license": "Apache-2.0",
   "bin": {
-    "codex": "bin/codex.js"
+    "elva": "bin/codex.js"
   },
   "type": "module",
   "engines": {

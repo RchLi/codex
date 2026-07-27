@@ -14,11 +14,11 @@ help:
 # `codex`
 alias c := codex
 codex *args:
-    cargo run --bin codex -- {args}
+    cargo run --bin elva -- {args}
 
 # `codex exec`
 exec *args:
-    cargo run --bin codex -- exec {args}
+    cargo run --bin elva -- exec {args}
 
 # Start `codex exec-server` and run codex-tui.
 [no-cd]

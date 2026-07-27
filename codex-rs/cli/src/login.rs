@@ -1,7 +1,7 @@
 //! CLI login commands and their direct-user observability surfaces.
 //!
 //! The TUI path already installs a broader tracing stack with feedback, OpenTelemetry, and other
-//! interactive-session layers. Direct `codex login` intentionally does less: it preserves the
+//! interactive-session layers. Direct `elva login` intentionally does less: it preserves the
 //! existing stderr/browser UX and adds only a small file-backed tracing layer for login-specific
 //! targets. Keeping that setup local avoids pulling the TUI's session-oriented logging machinery
 //! into a one-shot CLI command while still producing a durable `codex-login.log` artifact that
@@ -42,7 +42,7 @@ const ACCESS_TOKEN_LOGIN_DISABLED_MESSAGE: &str =
     "Access token login is disabled. Use API key login instead.";
 const LOGIN_SUCCESS_MESSAGE: &str = "Successfully logged in";
 
-/// Installs a small file-backed tracing layer for direct `codex login` flows.
+/// Installs a small file-backed tracing layer for direct `elva login` flows.
 ///
 /// This deliberately duplicates a narrow slice of the TUI logging setup instead of reusing it
 /// wholesale. The TUI stack includes session-oriented layers that are valuable for interactive
@@ -96,7 +96,7 @@ fn init_login_file_logging(config: &Config) -> Option<WorkerGuard> {
         .with_ansi(false)
         .with_filter(env_filter);
 
-    // Direct `codex login` otherwise relies on ephemeral stderr and browser output.
+    // Direct `elva login` otherwise relies on ephemeral stderr and browser output.
     // Persist the same login targets to a file so support can inspect auth failures
     // without reproducing them through TUI or app-server.
     if let Err(err) = tracing_subscriber::registry().with(file_layer).try_init() {
@@ -112,7 +112,7 @@ fn init_login_file_logging(config: &Config) -> Option<WorkerGuard> {
 
 fn print_login_server_start(actual_port: u16, auth_url: &str) {
     eprintln!(
-        "Starting local login server on http://localhost:{actual_port}.\nIf your browser did not open, navigate to this URL to authenticate:\n\n{auth_url}\n\nOn a remote or headless machine? Use `codex login --device-auth` instead."
+        "Starting local login server on http://localhost:{actual_port}.\nIf your browser did not open, navigate to this URL to authenticate:\n\n{auth_url}\n\nOn a remote or headless machine? Use `elva login --device-auth` instead."
     );
 }
 
@@ -348,7 +348,7 @@ pub async fn run_login_with_device_code(
 }
 
 /// Prefers device-code login (with `open_browser = false`) when headless environment is detected, but keeps
-/// `codex login` working in environments where device-code may be disabled/feature-gated.
+/// `elva login` working in environments where device-code may be disabled/feature-gated.
 /// If `run_device_code_login` returns `ErrorKind::NotFound` ("device-code unsupported"), this
 /// falls back to starting the local browser login server.
 pub async fn run_login_with_device_code_fallback_to_browser(
@@ -544,7 +544,7 @@ mod tests {
 
     #[tokio::test]
     async fn clears_existing_auth_before_login() {
-        let codex_home = tempdir().expect("create temporary Codex home");
+        let codex_home = tempdir().expect("create temporary Elva home");
         login_with_api_key(
             codex_home.path(),
             "sk-existing",

@@ -111,33 +111,87 @@ class Rebrander:
 
     # ---- tier 2: user-visible display name -------------------------------
 
-    STRING_LITERAL = re.compile(r'"(?:[^"\\\n]|\\.)*"')
+    # Crates whose strings and doc comments reach the user, the latter via clap
+    # help text.
+    DISPLAY_CRATES = ("codex-rs/tui/src", "codex-rs/cli/src", "codex-rs/exec/src")
+
+    # "Codex" in these files is a mascot name tied to CDN asset ids, not the
+    # product name, and the picker asserts on the catalog's alphabetical order.
+    EXCLUDED_FILES = (
+        "codex-rs/tui/src/pets/catalog.rs",
+        "codex-rs/tui/src/pets/picker.rs",
+    )
+
+    # Strings here name the official OpenAI Codex desktop app -- download URLs,
+    # the Codex.app bundle, the mounted volume -- which the fork still installs.
+    EXCLUDED_DIRS = ("codex-rs/cli/src/desktop_app",)
+
+    # Identifiers that merely look like the brand and must survive verbatim.
+    PROTECTED = ("OpenAI.Codex",)
 
     def rename_display_strings(self) -> None:
+        # A whole-file pass rather than a string-literal one: user-visible text
+        # also lives in raw strings, indoc! blocks and doc comments. The word
+        # boundary keeps `CodexOp`, `codex_home` and `CODEX_HOME` intact.
         word = re.compile(rf"\b{re.escape(self.old_display)}\b")
+        # Command references such as "Run `codex login`" name the binary.
+        command_refs = [
+            (f"`{self.old} ", f"`{self.new} "),
+            (f"`{self.old}`", f"`{self.new}`"),
+        ]
 
-        def sub_literal(match: re.Match[str]) -> str:
-            literal = match.group(0)
-            # Leave anything that looks like an identifier, path or env var.
-            if "CODEX_" in literal or f"{self.old}_" in literal or f"/{self.old}" in literal:
-                return literal
-            return word.sub(self.new_display, literal)
+        excluded = {REPO_ROOT / rel for rel in self.EXCLUDED_FILES}
+        excluded_dirs = [REPO_ROOT / rel for rel in self.EXCLUDED_DIRS]
+        for crate_dir in self.DISPLAY_CRATES:
+            for path in sorted((REPO_ROOT / crate_dir).rglob("*.rs")):
+                if path in excluded or any(d in path.parents for d in excluded_dirs):
+                    continue
+                text = path.read_text(encoding="utf-8")
+                updated = text
+                for index, token in enumerate(self.PROTECTED):
+                    updated = updated.replace(token, f"\x00{index}\x00")
+                updated = word.sub(self.new_display, updated)
+                for needle, replacement in command_refs:
+                    updated = updated.replace(needle, replacement)
+                for index, token in enumerate(self.PROTECTED):
+                    updated = updated.replace(f"\x00{index}\x00", token)
+                self._write(path, text, updated)
 
-        for path in sorted((REPO_ROOT / "codex-rs/tui/src").rglob("*.rs")):
-            text = path.read_text(encoding="utf-8")
-            self._write(path, text, self.STRING_LITERAL.sub(sub_literal, text))
+        # Snapshots are NOT patched textually: they capture fixed-width terminal
+        # output, so a shorter or longer brand name shifts the trailing padding
+        # of every line it appears on. Regenerate them instead, see run().
 
-        # Snapshot expectations must move with the strings they assert on.
-        for path in sorted((REPO_ROOT / "codex-rs/tui").rglob("*.snap")):
-            text = path.read_text(encoding="utf-8")
-            self._write(path, text, word.sub(self.new_display, text))
+    # Help text quotes the config path and the command name outside of the
+    # places `rename_binary` covers, including the shared CLI options crate.
+    HELP_TEXT_DIRS = DISPLAY_CRATES + ("codex-rs/utils/cli/src",)
+
+    def rename_help_text(self) -> None:
+        pairs = [
+            (f"~/.{self.old}", f"~/.{self.new}"),
+            (f"Usage: {self.old} ", f"Usage: {self.new} "),
+        ]
+        for crate_dir in self.HELP_TEXT_DIRS:
+            for path in sorted((REPO_ROOT / crate_dir).rglob("*.rs")):
+                text = path.read_text(encoding="utf-8")
+                updated = text
+                for needle, replacement in pairs:
+                    updated = updated.replace(needle, replacement)
+                self._write(path, text, updated)
 
     def run(self, with_strings: bool) -> None:
         self.rename_binary()
+        self.rename_help_text()
         self.rename_config_dir()
         self.rename_npm_package()
         if with_strings:
             self.rename_display_strings()
+            print(
+                "\nRegenerate the TUI snapshots, whose line padding depends on the\n"
+                "brand name's width, then re-run the suite to confirm it is green:\n"
+                "  cd codex-rs\n"
+                "  RUST_MIN_STACK=8388608 INSTA_UPDATE=always cargo test -p codex-tui --lib\n"
+                "  RUST_MIN_STACK=8388608 cargo test -p codex-tui --lib\n"
+            )
 
 
 def main() -> None:
